@@ -23,21 +23,23 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class ParseResources {
 
     private byte[] srcByte = null;
 
-    private ResTableHeader resTableHeader;
-    private ResStringPool resStringPool;        //全局字符串
+    private ResTableHeader resTableHeader;      //资源表头
+    public static ResStringPool resStringPool;        //全局字符串
     private ResTablePackage resTablePackage;    //资源包信息
-    private ResStringPool resTypeStringPool;    //资源类型字符串
-    private ResStringPool resKeyStringPool;     //资源名称字符串
+    public static ResStringPool resTypeStringPool;    //资源类型字符串
+    public static ResStringPool resKeyStringPool;     //资源名称字符串
+
+    private List<ResTableTypeSpec> typeSpecList = new ArrayList<>();
+
 
     public void test(Context context) {
-        System.out.println("-------开始读取文件----");
+        System.out.println("开始读取文件------------");
         try {
             InputStream is = context.getResources().getAssets().open("resources.arsc");
             int len = is.available();
@@ -48,42 +50,67 @@ public class ParseResources {
             e.printStackTrace();
         }
         if (srcByte == null) {
-            System.out.println("------读取失败------");
+            System.out.println("读取失败------------");
             return;
         }
 
-        System.out.println("文件大小为：" + srcByte.length + "字节");
-        System.out.println("开始解析文件-----");
+        System.out.println("资源表文件大小为：" + srcByte.length + "字节");
+        System.out.println("开始解析文件------------");
 
+        System.out.println("解析ResTable_header--------");
         resTableHeader = parseResTableHeader();
         System.out.println(resTableHeader);
 
-        //解析全局字符串池
+        System.out.println("解析全局资源字符串--------");
         resStringPool = parseResStringPool(resTableHeader.getHeaderSize());
-//        System.out.println(resStringPool);
+        System.out.println(resStringPool);
+        //打印出所有字符串
+        //    resStringPool.printAllResStrings();
 
-        System.out.println("   ");
-        System.out.println("资源包信息");
+        System.out.println("解析包信息ResTable_package--------");
         resTablePackage = parseResTablePackage();
         System.out.println(resTablePackage);
 
-        System.out.println("   ");
-        System.out.println("资源类型字符串");
+        System.out.println("解析资源类型字符串--------");
         parseResTypeString();
-//        System.out.println(resTypeStringPool);
+        System.out.println(resTypeStringPool);
+        System.out.println("资源类型字符串一共有：" + resTypeStringPool.getStringSize());
+        //打印出所有的资源类型字符串
+        resTypeStringPool.printAllResStrings();
 
-        System.out.println("    ");
-        System.out.println("资源名称字符串");
+        System.out.println("解析资源名称字符串--------");
         parseResKeyString();
-//        System.out.println(resKeyStringPool);
+        System.out.println(resKeyStringPool);
+        System.out.println("资源名称字符串一共有：" + resKeyStringPool.getStringSize());
+        //打印出所有资源名称字符串
+//        resKeyStringPool.printAllResStrings();
 
+
+        System.out.println("解析ResTable_typeSpec信息--------");
         //开始解析 type 信息
         int offset = resTableHeader.getHeaderSize() + resStringPool.getSize() + resTablePackage.keyStrings
                 + resKeyStringPool.getSize();
-
+        int typeSpecCount = 0;
         while (offset < resTableHeader.header.size) {
+            System.out.println("开始解析第" + (++typeSpecCount) + "个 ResTable_typeSpec 数据--------");
             offset = parseResTypeInfo(offset);
         }
+
+        System.out.println("ResTable_typeSpec数据一共有 " + typeSpecList.size() + " 个");
+        for (ResTableTypeSpec typeSpec : typeSpecList) {
+            System.out.println("==================");
+            System.out.println("=                =");
+            System.out.println(typeSpec);
+            String typeName = resTypeStringPool.getString(typeSpec.id - 1);
+            System.out.println("类型名称：" + typeName);
+
+            //看看 mipmap 类型
+            if ("mipmap".equals(typeName)) {
+                typeSpec.printTableTypeInfo();
+            }
+        }
+
+        System.out.println("文件解析完毕---------------");
     }
 
     /**
@@ -173,7 +200,6 @@ public class ParseResources {
         List<String> resStringList = new ArrayList<>();
         int flags = stringPoolHeader.flags;
         if ((flags & 0x100) != 0) {
-            System.out.println("字符串采用UTF-8编码");
             for (int i = 0; i < stringOffsetArr.length; i++) {
                 int stringsStart = stringPoolHeader.stringsStart + stringOffsetArr[i];
                 int len;
@@ -199,14 +225,12 @@ public class ParseResources {
                 String data = null;
                 if (stringByte == null || stringByte.length == 0) {
                     data = null;
-//                    Log.d("TEST", i + ": 这是一个空字符串");
                 } else {
                     try {
                         data = new String(stringByte, "UTF-8");
                     } catch (UnsupportedEncodingException e) {
                         e.printStackTrace();
                     }
-//                    Log.d("TEST", i + ": " + data);
                 }
                 resStringList.add(data);
             }
@@ -243,16 +267,18 @@ public class ParseResources {
             nameShort[i] = ByteUtil.byte2short(ByteUtil.copyByte(nameByte, i * 2, 2));
         }
         resTablePackage.name = nameShort;
-        nameByte = new byte[128];
-        int len = 0;
-        for (int i = 0; i < nameShort.length; i++) {
-            len = i;
-            if (nameShort[i] == 0)
-                continue;
-            byte b = (byte) nameShort[i];
-            nameByte[i] = b;
+
+        //开始解析出包名
+        //固定长度为 128 的 short 数组，不足的都补 0
+        List<Byte> nameByteList = new ArrayList<>();
+        for (byte b : nameByte) {
+            if (b > 0)
+                nameByteList.add(b);
         }
-        nameByte = Arrays.copyOfRange(nameByte, 0, len);
+        nameByte = new byte[nameByteList.size()];
+        for (int i = 0; i < nameByteList.size(); i++) {
+            nameByte[i] = nameByteList.get(i);
+        }
         String packageName = new String(nameByte);
 
         offset += 256;
@@ -301,10 +327,9 @@ public class ParseResources {
      * 解析类型规范
      */
     private int parseResTypeInfo(int offset) {
-        System.out.println("     ");
-        System.out.println("     ");
-        System.out.println("开始解析 ResTable_typeSpec========");
         ResTableTypeSpec typeSpec = new ResTableTypeSpec();
+        typeSpecList.add(typeSpec);
+
         typeSpec.header = parseResChunkHeader(srcByte, offset);
         offset += typeSpec.header.getHeaderSize();
         typeSpec.id = srcByte[offset];
@@ -315,7 +340,6 @@ public class ParseResources {
         offset += 2;
         byte[] countByte = ByteUtil.copyByte(srcByte, offset, 4);
         typeSpec.entryCount = ByteUtil.byte2int(countByte);
-        System.out.println(typeSpec);
 
         //紧跟着的是 一个 type spec 数组
         offset += 4;
@@ -325,29 +349,26 @@ public class ParseResources {
             offset += 4;
             specArr[i] = ByteUtil.byte2int(data);
         }
+        typeSpec.specArray = specArr;
 
         //后面接着是若干个 ResTable_type 类型数据
         if (offset >= resTableHeader.header.size) {
-            System.out.println("====解析结束111=====");
             return offset;
         }
 
         ResChunkHeader chunkHeader = parseResChunkHeader(srcByte, offset);
-        System.out.println(chunkHeader);
 
         int nextChunkOffset = offset;
         while (chunkHeader.type == 0x0201) {
             //接着是 ResTable_type 数据
-
-            System.out.println("     ");
-            System.out.println("开始解析 ResTable_type========");
             offset = nextChunkOffset;
             int typeOriginalOffset = offset;
 
             ResTableType tableType = new ResTableType();
+            typeSpec.tableTypeList.add(tableType);
+
             tableType.header = parseResChunkHeader(srcByte, offset);
             nextChunkOffset += tableType.header.size;
-            System.out.println("next chunk offset = " + nextChunkOffset);
 
             offset += tableType.header.getHeaderSize();
             tableType.id = srcByte[offset++];
@@ -396,22 +417,17 @@ public class ParseResources {
             config.screenConfig2 = ByteUtil.byte2int(ByteUtil.copyByte(srcByte, offset + 48, 4));
             tableType.config = config;
 
-            System.out.println(tableType);
-            System.out.println("资源类型：" + resTypeStringPool.getString(tableType.id - 1));
-
             //紧跟着 entryCount 个 int型偏移数组
             int[] entryOffsetArr = new int[tableType.entryCount];
             offset = typeOriginalOffset + tableType.header.headerSize;
             for (int i = 0; i < entryOffsetArr.length; i++) {
                 entryOffsetArr[i] = ByteUtil.byte2int(ByteUtil.copyByte(srcByte, offset, 4));
-//                System.out.println("entry offset: " + ByteUtil.toHex(entryOffsetArr[i]) + ", " + entryOffsetArr[i]);
                 offset += 4;
             }
 
             offset = typeOriginalOffset + tableType.entriesStart;
             //接着是 ResTable_entry;
             int entriesStart = offset;
-            ResTableEntry[] tableEntryArr = new ResTableEntry[tableType.entryCount];
             for (int i = 0; i < tableType.entryCount; i++) {
                 //因为偏移数组中元素数量可能比其后面的ResTable_entry数量多，对于没有对应ResTable_entry结构的偏移数组中元素，其值为0xffffffff.
                 //这点尤为关键，否则极有可能解析错误
@@ -421,35 +437,27 @@ public class ParseResources {
                 }
                 offset = entriesStart + entryOffsetArr[i];
                 ResTableEntry entry = parseResTableEntry(ByteUtil.copyByte(srcByte, offset, 8));
-                System.out.println(entry);
-                System.out.println("资源名称：" + resKeyStringPool.getString(entry.key.index));
 
                 if ((entry.flags & 0x01) != 0) {
                     //ResTable_map_entry结构
-                    System.out.println("map entry structure=============");
                     ResTableMapEntry mapEntry = parseResTableMapEntry(offset);
-                    System.out.println(mapEntry);
-
                     ResTableMap[] mapArr = parseResTableMap(offset + mapEntry.getSize(), mapEntry.count);
-
+                    mapEntry.tableMaps = mapArr;
+                    tableType.tableEntryList.add(mapEntry);
                 } else {
                     ResValue value = parseResValue(ByteUtil.copyByte(srcByte, offset + entry.getSize(), 8));
-                //    System.out.println(value);
-                    //TODO 打印出值来
-                    // System.out.println(resStringPool.getString(value.data));
+                    entry.value = value;
+                    tableType.tableEntryList.add(entry);
                 }
             }
 
             if (nextChunkOffset >= resTableHeader.header.size) {
-                System.out.println("====解析结束2222=====");
+                //解析结束
                 return nextChunkOffset;
             }
             chunkHeader = parseResChunkHeader(srcByte, nextChunkOffset);
-            System.out.println(chunkHeader);
         }
 
-        System.out.println("====下一个 data chunk 不是 ResTable_type =====");
-        System.out.println("下一个chunk type = " + ByteUtil.toHex(chunkHeader.type));
         return nextChunkOffset;
     }
 

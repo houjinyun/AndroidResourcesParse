@@ -1,6 +1,7 @@
 package com.hjy.resourcesparse.type;
 
 
+import com.hjy.resourcesparse.ParseResources;
 import com.hjy.resourcesparse.util.ByteUtil;
 
 public class ResTableEntry {
@@ -12,6 +13,8 @@ public class ResTableEntry {
     public short size;
     public short flags;
     public ResStringPoolRef key;
+
+    public ResValue value;
 
     public int getSize() {
         return 8;
@@ -25,4 +28,11 @@ public class ResTableEntry {
                 ", key=" + key +
                 '}';
     }
+
+    public void printNameAndValue() {
+        System.out.println("资源名称：" + ParseResources.resKeyStringPool.getString(key.index));
+        System.out.println("资源值：" + value.getDataStr());
+    }
+
+
 }

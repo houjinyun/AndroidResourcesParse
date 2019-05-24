@@ -1,5 +1,8 @@
 package com.hjy.resourcesparse.type;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Created by hjy on 2019/4/30.
  */
@@ -12,6 +15,10 @@ public class ResTableTypeSpec {
     public short res1;
     public int entryCount;
 
+    //type spec 数组
+    public int[] specArray;
+    public List<ResTableType> tableTypeList = new ArrayList<>();
+
     @Override
     public String toString() {
         return "ResTableTypeSpec{" +
@@ -20,6 +27,14 @@ public class ResTableTypeSpec {
                 ", res0=" + res0 +
                 ", res1=" + res1 +
                 ", entryCount=" + entryCount +
+                ", ResTableType count = " + tableTypeList.size() +
                 '}';
     }
+
+    public void printTableTypeInfo() {
+        for (ResTableType tableType: tableTypeList) {
+            tableType.printDetailInfo();
+        }
+    }
+
 }

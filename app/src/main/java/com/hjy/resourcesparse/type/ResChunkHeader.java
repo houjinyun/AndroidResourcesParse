@@ -69,4 +69,28 @@ public class ResChunkHeader {
                 '}';
     }
 
+    public String getType(short type) {
+        switch (type) {
+            case 0x0000:
+                return "RES_NULL_TYPE";
+            case 0x0001:
+                return "RES_STRING_POOL_TYPE";
+            case 0x0002:
+                return "RES_TABLE_TYPE";
+            case 0x0003:
+                return "RES_XML_TYPE";
+
+            case 0x0200:
+                return "RES_TABLE_PACKAGE_TYPE";
+            case 0x0201:
+                return "RES_TABLE_TYPE_TYPE";
+            case 0x0202:
+                return "RES_TABLE_TYPE_SPEC_TYPE";
+            case 0x0203:
+                return "RES_TABLE_LIBRARY_TYPE";
+
+        }
+        return ByteUtil.toHex(type);
+    }
+
 }

@@ -22,23 +22,23 @@ public class ResStringPool {
         return null;
     }
 
+    public int getStringSize() {
+        return resStringList != null ? resStringList.size() : 0;
+    }
+
     @Override
     public String toString() {
         return "ResStringPool{" +
                 "resStringPoolHeader=" + resStringPoolHeader +
-                ", resStringList=" + formatString() +
                 '}';
     }
 
-    private String formatString() {
-        StringBuilder sb = new StringBuilder();
+    public void printAllResStrings() {
         if (resStringList != null) {
-            sb.append("\n");
             for (String str : resStringList) {
-                sb.append(str).append("\n");
+                System.out.println(str);
             }
         }
-        return sb.toString();
     }
 
 }
