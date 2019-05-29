@@ -65,7 +65,7 @@ public class ParseResources {
         resStringPool = parseResStringPool(resTableHeader.getHeaderSize());
         System.out.println(resStringPool);
         //打印出所有字符串
-        //    resStringPool.printAllResStrings();
+        resStringPool.printAllResStrings();
 
         System.out.println("解析包信息ResTable_package--------");
         resTablePackage = parseResTablePackage();
@@ -202,35 +202,30 @@ public class ParseResources {
         if ((flags & 0x100) != 0) {
             for (int i = 0; i < stringOffsetArr.length; i++) {
                 int stringsStart = stringPoolHeader.stringsStart + stringOffsetArr[i];
-                int len;
-                int c = 1;
-                if ((stringPoolByte[stringsStart + 1] & 0x80) == 0) {
-                    len = stringPoolByte[stringsStart + c];
-                } else {
-                    int realSize = stringPoolByte[stringsStart + c];
-                    int j = 0;
-                    while ((realSize & (0x80 << j)) != 0) {
-                        c++;
-                        byte tmp = stringPoolByte[stringsStart + c];
-                        realSize = ((realSize & 0x7f) << 8) | (tmp & 0xff);
-                        j += 4;
-                    }
-                    len = realSize;
-                    //                  System.out.println("len = " + len + "   test len = " + (stringOffsetArr[i + 1]- stringOffsetArr[i]));
 
-                    //TODO 字符串长度太大时，计算还是有问题
+                int val = stringPoolByte[stringsStart];
+                int len;
+                if ((val & 0x80) != 0) {
+                    stringsStart += 2;
+                } else {
+                    stringsStart += 1;
+                }
+                val = stringPoolByte[stringsStart];
+                stringsStart += 1;
+                if ((val & 0x80) != 0) {
+                    int low = stringPoolByte[stringsStart] & 0xff;
+                    len = ((val & 0x7f) << 8) + low;
+                    stringsStart += 1;
+                } else {
+                    len = val;
                 }
 
-                byte[] stringByte = ByteUtil.copyByte(stringPoolByte, stringsStart + c + 1, len);
+                byte[] stringByte = ByteUtil.copyByte(stringPoolByte, stringsStart, len);
                 String data = null;
                 if (stringByte == null || stringByte.length == 0) {
                     data = null;
                 } else {
-                    try {
-                        data = new String(stringByte, "UTF-8");
-                    } catch (UnsupportedEncodingException e) {
-                        e.printStackTrace();
-                    }
+                    data = new String(stringByte);
                 }
                 resStringList.add(data);
             }
